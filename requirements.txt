@@ -1,6 +1,6 @@
 # --- Web framework ---
 fastapi==0.111.0
-uvicorn[standard]==0.30.1
+uvicorn[standard]==0.53.0
 pydantic==2.7.4
 pydantic-settings==2.3.4
 email-validator==2.2.0       # required for pydantic EmailStr
