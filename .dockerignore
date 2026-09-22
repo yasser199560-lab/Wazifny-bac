@@ -1,0 +1,20 @@
+# Never send secrets, virtual environments, or local artifacts to Docker.
+.env
+.env.*
+.git/
+.github/
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+*.log
+logs/
+uploads/
+instance/
+tests/
+scripts/

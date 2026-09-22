@@ -1,0 +1,37 @@
+# --- Web framework ---
+fastapi==0.111.0
+uvicorn[standard]==0.30.1
+pydantic==2.7.4
+pydantic-settings==2.3.4
+email-validator==2.2.0       # required for pydantic EmailStr
+
+# --- Database (MongoDB) ---
+motor==3.5.0          # async MongoDB driver
+pymongo==4.8.0
+dnspython==2.6.1      # required to resolve mongodb+srv:// URIs (Atlas)
+
+# --- Auth ---
+python-jose[cryptography]==3.3.0
+passlib[bcrypt]==1.7.4
+bcrypt==4.0.1          # pinned: passlib 1.7.4 breaks on bcrypt>=4.1 (removed internals it relies on)
+python-multipart==0.0.9   # form / file uploads
+
+# --- CV text extraction ---
+pdfplumber==0.11.2
+python-docx==1.1.2
+
+# --- Field extraction (CV -> profile) ---
+spacy==3.7.5
+google-generativeai==0.7.1   # Gemini API (optional, higher-accuracy extraction)
+
+# --- AI matching engine ---
+sentence-transformers==3.0.1
+faiss-cpu==1.8.0
+
+# --- Notifications ---
+# elastic email is called over HTTP, so no dedicated SDK is required —
+# see app/services/notification_service.py (httpx-based client)
+httpx==0.27.0
+
+# --- Utilities ---
+python-dotenv==1.0.1

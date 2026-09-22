@@ -1,0 +1,41 @@
+# Secrets and local configuration (keep the documented template only)
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+*.pfx
+*.crt
+*.cer
+secrets/
+
+# Python environments, bytecode, and test/build artifacts
+.venv/
+venv/
+env/
+ENV/
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+coverage.xml
+htmlcov/
+build/
+dist/
+*.egg-info/
+
+# Runtime-generated data and logs
+*.log
+logs/
+uploads/
+instance/
+
+# Editor and OS files
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
