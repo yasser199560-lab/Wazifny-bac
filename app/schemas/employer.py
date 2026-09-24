@@ -7,7 +7,6 @@ from pydantic import BaseModel, Field
 
 class CompanyProfileUpdate(BaseModel):
     company_name: str | None = None
-    logo_url: str | None = None
     website: str | None = None
     sector: str | None = None
     workforce_size: str | None = None
@@ -21,6 +20,7 @@ class CompanyProfileOut(BaseModel):
     user_id: str
     company_name: str
     logo_url: str | None = None
+    banner_url: str | None = None
     website: str | None = None
     sector: str | None = None
     workforce_size: str | None = None

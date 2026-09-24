@@ -39,6 +39,33 @@ def _serialize(doc: dict, reason: str | None = None, score: int | None = None) -
     return out
 
 
+async def attach_current_company_profiles(db, jobs: list[dict]) -> list[dict]:
+    """Use current company branding instead of the job's creation-time snapshot."""
+    employer_ids = list({job.get("employer_id") for job in jobs if job.get("employer_id")})
+    if not employer_ids:
+        return jobs
+
+    profiles = {
+        profile["user_id"]: profile
+        async for profile in db.employer_profiles.find(
+            {"user_id": {"$in": employer_ids}},
+            {"user_id": 1, "company_name": 1, "logo_url": 1, "logo_file_id": 1},
+        )
+    }
+    for job in jobs:
+        profile = profiles.get(job.get("employer_id"))
+        if not profile:
+            continue
+        job["company_name"] = profile.get("company_name") or job.get("company_name")
+        if profile.get("logo_file_id"):
+            job["company_logo_url"] = profile.get("logo_url") or (
+                f"/api/v1/employers/{profile['user_id']}/media/logo"
+            )
+        else:
+            job["company_logo_url"] = profile.get("logo_url")
+    return jobs
+
+
 async def mark_applied_jobs(db, talent_id: str, jobs: list[dict]) -> list[dict]:
     """Attach the current talent's application state without exposing it publicly."""
     if not jobs:
@@ -110,7 +137,9 @@ async def search_jobs(
     candidates = await _build_candidate_pool(db, category, location, job_type)
 
     if not q or not q.strip():
-        jobs = [_serialize(j) for j in candidates[:limit]]
+        jobs = await attach_current_company_profiles(
+            db, [_serialize(j) for j in candidates[:limit]]
+        )
         return {"jobs": jobs, "ai_ranked": False}
 
     q = q.strip()
@@ -143,13 +172,16 @@ async def search_jobs(
                     reason = item.get("reason") if isinstance(item, dict) else None
                     ranked.append(_serialize(by_id[job_id], reason))
             if ranked:
-                return {"jobs": ranked[:limit], "ai_ranked": True, "ai_provider": provider}
+                ranked = await attach_current_company_profiles(db, ranked[:limit])
+                return {"jobs": ranked, "ai_ranked": True, "ai_provider": provider}
 
     # Fallback: plain keyword scoring — never leave the user with a blank page.
     scored = [(job, _keyword_score(q, job)) for job in candidates]
     scored = [pair for pair in scored if pair[1] > 0] or [(j, 0) for j in candidates]
     scored.sort(key=lambda pair: pair[1], reverse=True)
-    jobs = [_serialize(job) for job, _score in scored[:limit]]
+    jobs = await attach_current_company_profiles(
+        db, [_serialize(job) for job, _score in scored[:limit]]
+    )
     return {"jobs": jobs, "ai_ranked": False}
 
 
@@ -252,6 +284,7 @@ async def get_ai_matches(db, talent_user_id: str, limit: int = 20) -> dict:
     matches = await mark_applied_jobs(
         db, talent_user_id, [_serialize(job, reason, score) for job, score, reason in top]
     )
+    matches = await attach_current_company_profiles(db, matches)
     return {"personalized": True, "ai_ranked": ai_ranked, "matches": matches}
 
 
@@ -264,6 +297,7 @@ async def get_recommended_jobs(db, talent_user_id: str, limit: int = 6) -> dict:
             limit * 3
         ).to_list(length=limit * 3)
         other = await mark_applied_jobs(db, talent_user_id, [_serialize(j) for j in all_jobs])
+        other = await attach_current_company_profiles(db, other)
         return {
             "personalized": False,
             "ai_ranked": False,
@@ -284,6 +318,8 @@ async def get_recommended_jobs(db, talent_user_id: str, limit: int = 6) -> dict:
     ]
     await mark_applied_jobs(db, talent_user_id, recommended)
     await mark_applied_jobs(db, talent_user_id, other)
+    recommended = await attach_current_company_profiles(db, recommended)
+    other = await attach_current_company_profiles(db, other)
     return {
         "personalized": True,
         "ai_ranked": ai_ranked,

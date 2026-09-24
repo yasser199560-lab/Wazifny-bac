@@ -70,6 +70,21 @@ async def my_jobs(current_user: dict = Depends(require_role("employer"))) -> lis
     return jobs
 
 
+@router.get("/mine/{job_id}", response_model=JobOut)
+async def my_job(job_id: str, current_user: dict = Depends(require_role("employer"))) -> dict:
+    """Return one of the current employer's postings, including pending ones."""
+    db = get_database()
+    try:
+        job = await db.jobs.find_one({"_id": ObjectId(job_id), "employer_id": current_user["id"]})
+    except InvalidId:
+        job = None
+    if not job:
+        raise HTTPException(status_code=404, detail="Job not found")
+    out = _serialize(job)
+    out["applicants_count"] = await db.applications.count_documents({"job_id": job_id})
+    return out
+
+
 @router.post("", response_model=JobOut, status_code=201)
 async def create_job(
     payload: JobCreate, current_user: dict = Depends(require_role("employer"))
