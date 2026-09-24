@@ -27,14 +27,18 @@ async def connect_to_mongo() -> None:
     """
     mongodb.client = AsyncIOMotorClient(
         settings.mongodb_uri,
-        serverSelectionTimeoutMS=8000,
-        connectTimeoutMS=8000,
+        serverSelectionTimeoutMS=settings.mongodb_server_selection_timeout_ms,
+        connectTimeoutMS=settings.mongodb_connect_timeout_ms,
+        maxPoolSize=settings.mongodb_max_pool_size,
+        minPoolSize=settings.mongodb_min_pool_size,
+        maxIdleTimeMS=120000,
         retryWrites=True,
     )
     mongodb.db = mongodb.client[settings.mongodb_db_name]
 
     try:
         await mongodb.client.admin.command("ping")
+        await ensure_indexes(mongodb.db)
         logger.info("Connected to MongoDB database '%s'.", settings.mongodb_db_name)
     except ConfigurationError as exc:
         # Raised when the `mongodb+srv://` hostname's DNS SRV/TXT records
@@ -80,6 +84,55 @@ async def connect_to_mongo() -> None:
 async def close_mongo_connection() -> None:
     if mongodb.client:
         mongodb.client.close()
+
+
+async def ensure_indexes(db: AsyncIOMotorDatabase) -> None:
+    """Create the indexes used by the highest-traffic API queries.
+
+    MongoDB makes this operation idempotent, so it is safe to run once during
+    startup. These indexes prevent list, auth, notification, and matching
+    endpoints from scanning entire collections as the platform grows.
+    """
+    indexes = {
+        "users": [([('email', 1)], {"unique": True, "name": "email_unique"})],
+        "jobs": [
+            ([('status', 1), ('posted_at', -1)], {"name": "status_posted_at"}),
+            ([('employer_id', 1), ('posted_at', -1)], {"name": "employer_posted_at"}),
+            ([('category', 1), ('status', 1), ('posted_at', -1)], {"name": "category_status_posted_at"}),
+            ([('job_type', 1), ('status', 1), ('posted_at', -1)], {"name": "job_type_status_posted_at"}),
+        ],
+        "applications": [
+            ([('talent_id', 1), ('applied_at', -1)], {"name": "talent_applied_at"}),
+            ([('job_id', 1), ('applied_at', -1)], {"name": "job_applied_at"}),
+        ],
+        "talent_skills": [([('talent_id', 1)], {"name": "talent_id"})],
+        "work_preferences": [([('talent_id', 1)], {"name": "talent_id"})],
+        "talent_profiles": [([('user_id', 1)], {"name": "user_id"})],
+        "employer_profiles": [([('user_id', 1)], {"name": "user_id"})],
+        "job_matches": [
+            ([('talent_id', 1), ('job_id', 1)], {"name": "talent_job"}),
+            ([('job_id', 1), ('match_score', -1)], {"name": "job_score"}),
+        ],
+        "notifications": [([('user_id', 1), ('created_at', -1)], {"name": "user_created_at"})],
+        "messages": [([('conversation_id', 1), ('sent_at', 1)], {"name": "conversation_sent_at"})],
+        "conversations": [
+            ([('talent_id', 1), ('employer_id', 1)], {"name": "talent_employer"}),
+            ([('talent_id', 1), ('updated_at', -1)], {"name": "talent_updated_at"}),
+            ([('employer_id', 1), ('updated_at', -1)], {"name": "employer_updated_at"}),
+        ],
+        "saved_jobs": [([('talent_id', 1), ('saved_at', -1)], {"name": "talent_saved_at"})],
+        "saved_candidates": [([('employer_id', 1), ('saved_at', -1)], {"name": "employer_saved_at"})],
+        "testimonials": [([('featured', 1), ('created_at', -1)], {"name": "featured_created_at"})],
+        "articles": [([('published_at', -1)], {"name": "published_at"})],
+    }
+
+    for collection_name, collection_indexes in indexes.items():
+        collection = db[collection_name]
+        for keys, options in collection_indexes:
+            try:
+                await collection.create_index(keys, **options)
+            except Exception as exc:  # noqa: BLE001 - one stale index must not block boot
+                logger.warning("Could not ensure index %s.%s: %s", collection_name, options["name"], exc)
 
 
 def get_database() -> AsyncIOMotorDatabase:

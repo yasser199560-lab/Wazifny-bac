@@ -12,6 +12,10 @@ class Settings(BaseSettings):
 
     mongodb_uri: str
     mongodb_db_name: str = "wazifny"
+    mongodb_server_selection_timeout_ms: int = 5000
+    mongodb_connect_timeout_ms: int = 5000
+    mongodb_max_pool_size: int = 50
+    mongodb_min_pool_size: int = 1
 
     jwt_secret_key: str
     jwt_algorithm: str = "HS256"

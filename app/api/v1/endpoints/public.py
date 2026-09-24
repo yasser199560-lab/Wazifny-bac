@@ -5,6 +5,8 @@ hardcoded numbers — if the seed script (or real usage) changes the data, the
 homepage reflects it on the next request.
 """
 
+import asyncio
+
 from fastapi import APIRouter
 
 from app.db.mongodb import get_database
@@ -125,7 +127,7 @@ async def get_articles() -> dict:
 async def get_landing_data() -> dict:
     """Single combined call so the Next.js landing page only needs one
     server-side fetch."""
-    stats = await get_stats()
-    categories = await get_categories()
-    testimonials = await get_testimonials()
+    stats, categories, testimonials = await asyncio.gather(
+        get_stats(), get_categories(), get_testimonials()
+    )
     return {**stats, **categories, **testimonials}
