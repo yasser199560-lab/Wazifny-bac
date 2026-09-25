@@ -1,4 +1,4 @@
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 import logging
 
 from bson import ObjectId
@@ -114,6 +114,10 @@ async def update_personal_info(
     # cleared by the profile form (sent as null).
     update = payload.model_dump(exclude_unset=True)
     if update:
+        # BSON supports datetime but not datetime.date. Store date-only values
+        # as ISO strings; Pydantic converts them back to `date` in API output.
+        if isinstance(update.get("dob"), date):
+            update["dob"] = update["dob"].isoformat()
         await db.talent_profiles.update_one(
             {"user_id": talent_id}, {"$set": {"user_id": talent_id, **update}}, upsert=True
         )

@@ -157,13 +157,21 @@ async def my_applications(current_user: dict = Depends(require_role("talent"))) 
     job_ids = [a["job_id"] for a in app_docs]
     scores = await get_match_scores(db, talent_id, job_ids)
 
+    object_ids = []
+    for job_id in job_ids:
+        try:
+            object_ids.append(ObjectId(job_id))
+        except InvalidId:
+            continue
+    jobs = {
+        str(job["_id"]): job
+        async for job in db.jobs.find({"_id": {"$in": object_ids}})
+    } if object_ids else {}
+
     results = []
     for app_doc in app_docs:
         out = _serialize(app_doc)
-        try:
-            job = await db.jobs.find_one({"_id": ObjectId(app_doc["job_id"])})
-        except InvalidId:
-            job = None
+        job = jobs.get(app_doc["job_id"])
         out["job_title"] = job.get("title") if job else None
         out["company_name"] = job.get("company_name") if job else None
         out["employer_id"] = job.get("employer_id") if job else None

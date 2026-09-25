@@ -31,18 +31,22 @@ DEFAULT_CATEGORIES = [
 async def get_stats() -> dict:
     db = get_database()
 
-    active_talents = await db.users.count_documents({"role": "talent"})
-    companies = await db.users.count_documents({"role": "employer"})
-    jobs_posted = await db.jobs.count_documents({})
+    active_talents, companies, jobs_posted, match_docs = await asyncio.gather(
+        db.users.count_documents({"role": "talent"}),
+        db.users.count_documents({"role": "employer"}),
+        db.jobs.count_documents({}),
+        db.job_matches.aggregate(
+            [{"$group": {"_id": None, "avg_score": {"$avg": "$match_score"}}}]
+        ).to_list(length=1),
+    )
 
     # Match accuracy: average AI match_score across generated job matches,
     # expressed as a percentage. Falls back to a sensible default when no
     # matches have been generated yet (e.g. brand-new database).
     match_accuracy = 94
-    pipeline = [{"$group": {"_id": None, "avg_score": {"$avg": "$match_score"}}}]
-    async for doc in db.job_matches.aggregate(pipeline):
-        if doc.get("avg_score") is not None:
-            match_accuracy = round(doc["avg_score"] * 100 if doc["avg_score"] <= 1 else doc["avg_score"])
+    if match_docs and match_docs[0].get("avg_score") is not None:
+        avg_score = match_docs[0]["avg_score"]
+        match_accuracy = round(avg_score * 100 if avg_score <= 1 else avg_score)
 
     def _fmt(n: int) -> str:
         return f"{n:,}+" if n else "0"

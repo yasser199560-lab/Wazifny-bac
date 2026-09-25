@@ -121,6 +121,10 @@ async def get_job(
         raise HTTPException(status_code=404, detail="Job not found")
     if not doc:
         raise HTTPException(status_code=404, detail="Job not found")
+    is_owner = current_user and current_user.get("role") == "employer" and doc.get("employer_id") == current_user.get("id")
+    is_admin = current_user and current_user.get("role") == "admin"
+    if doc.get("status") != "active" and not (is_owner or is_admin):
+        raise HTTPException(status_code=404, detail="Job not found")
     result = _serialize(doc)
     if current_user and current_user.get("role") == "talent":
         await mark_applied_jobs(db, current_user["id"], [result])
